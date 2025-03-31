@@ -1,11 +1,15 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
 import requests
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 
 app = Flask(__name__)
 app.secret_key = 'chave-secreta-sicro'  # só pra exibir mensagens
 
 # URL da API da aplicação de estoque (ajuste se for usar no Render)
-API_ESTOQUE = 'http://localhost:5000'
+API_ESTOQUE = os.getenv('API_ESTOQUE_URL')
 
 @app.route('/')
 def index():
