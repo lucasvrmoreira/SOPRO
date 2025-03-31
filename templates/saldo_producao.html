@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Solicitação de Separação</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <style>
+    body {
+      background-color: #f5f7fa;
+    }
+    .card {
+      border-radius: 1rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      transition: transform 0.2s ease-in-out;
+    }
+    .card:hover {
+      transform: scale(1.02);
+    }
+    .btn-outline-primary {
+      transition: all 0.2s;
+    }
+    .btn-outline-primary:hover {
+      transform: scale(1.05);
+    }
+    #itensSelecionados {
+      background-color: #fff;
+      border-radius: 1rem;
+      padding: 1rem;
+      border: 1px solid #dee2e6;
+      transition: all 0.3s ease-in-out;
+    }
+    #itensSelecionados li {
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn {
+      from {opacity: 0; transform: translateY(10px);}
+      to {opacity: 1; transform: translateY(0);}
+    }
+    h5 {
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+<div class="container mt-4">
+  <h2 class="text-center text-primary mb-4">Solicitação de Separação</h2>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <!-- Parte superior: Tipos de roupas -->
+  <div class="mb-4 text-center">
+    {% set icones = {
+      'Macacão Azul': 'bi-person-bounding-box',
+      'Bota Azul': 'bi-bootstrap',
+      'Óculos': 'bi-eyeglasses',
+      'Panos': 'bi-stack',
+      'Jaleco': 'bi-person-fill',
+      'Camisa': 'bi-shirt',
+      'Calça': 'bi-slash-circle'
+    } %}
+
+    {% for item in saldo|unique(attribute='tipo') %}
+      <button class="btn btn-outline-primary m-1" onclick="mostrarLotes('{{ item.tipo }}')">
+        <i class="bi {{ icones.get(item.tipo, 'bi-box') }}"></i> {{ item.tipo }}
+      </button>
+    {% endfor %}
+  </div>
+
+  <!-- Parte do meio: Lado esquerdo e direito -->
+  <div class="row">
+    <!-- Lado esquerdo: lotes disponíveis -->
+    <div class="col-md-6">
+      <h5 class="mb-3">Lotes disponíveis para: <span id="tipoSelecionado" class="text-muted">Selecione um tipo</span></h5>
+      <div id="lotesDisponiveis"></div>
+    </div>
+
+    <!-- Lado direito: resumo da solicitação -->
+    <div class="col-md-6">
+      <h5 class="mb-3">Itens Selecionados</h5>
+      <ul id="itensSelecionados" class="list-group mb-3"></ul>
+
+      <form method="POST" action="{{ url_for('solicitar') }}">
+        <input type="hidden" name="itens" id="inputItens">
+        <button type="submit" class="btn btn-success w-100 mb-2">
+          <i class="bi bi-send-check"></i> Enviar Solicitação
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  const saldo = {{ saldo | tojson | safe }};
+  let selecionados = [];
+
+  function mostrarLotes(tipo) {
+    const lotesDiv = document.getElementById('lotesDisponiveis');
+    const tipoSelecionado = document.getElementById('tipoSelecionado');
+    lotesDiv.innerHTML = '';
+    tipoSelecionado.innerText = tipo;
+
+    const roupas = saldo.filter(item => item.tipo === tipo);
+
+    roupas.forEach((item, index) => {
+      const card = document.createElement('div');
+      card.className = 'card mb-3';
+
+      const cardBody = document.createElement('div');
+      cardBody.className = 'card-body';
+
+      const info = document.createElement('h6');
+      info.innerHTML = `<strong>${item.tipo}</strong> | Tamanho: ${item.tamanho} | Qtd: <span class='badge bg-success'>${item.quantidade}</span>`;
+      cardBody.appendChild(info);
+
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = 1;
+      input.max = item.quantidade;
+      input.placeholder = 'Qtd a solicitar';
+      input.className = 'form-control my-2';
+
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-outline-primary';
+      btn.innerHTML = '<i class="bi bi-plus-circle"></i> Adicionar';
+      btn.onclick = () => adicionarItem(item, input.value);
+
+      cardBody.appendChild(input);
+      cardBody.appendChild(btn);
+      card.appendChild(cardBody);
+      lotesDiv.appendChild(card);
+    });
+  }
+
+  function adicionarItem(item, qtd) {
+    const quantidade = parseInt(qtd);
+    if (!quantidade || quantidade <= 0 || quantidade > item.quantidade) {
+      alert("Quantidade inválida");
+      return;
+    }
+
+    selecionados.push({ tipo: item.tipo, tamanho: item.tamanho, quantidade: quantidade });
+    atualizarResumo();
+  }
+
+  function atualizarResumo() {
+    const lista = document.getElementById('itensSelecionados');
+    const inputHidden = document.getElementById('inputItens');
+    lista.innerHTML = '';
+
+    selecionados.forEach((item, i) => {
+      const li = document.createElement('li');
+      li.className = 'list-group-item d-flex justify-content-between align-items-center';
+      li.textContent = `${item.tipo} | Tam: ${item.tamanho} | Qtd: ${item.quantidade}`;
+
+      const btnRemove = document.createElement('button');
+      btnRemove.className = 'btn btn-sm btn-danger';
+      btnRemove.innerHTML = '<i class="bi bi-trash"></i>';
+      btnRemove.onclick = () => {
+        selecionados.splice(i, 1);
+        atualizarResumo();
+      };
+
+      li.appendChild(btnRemove);
+      lista.appendChild(li);
+    });
+
+    inputHidden.value = JSON.stringify(selecionados);
+  }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
